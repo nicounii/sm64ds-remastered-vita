@@ -8,10 +8,6 @@
 
 #include "game/save_file.h"
 
-#ifdef TARGET_WEB
-#include <emscripten.h>
-#endif
-
 s32 gNumVblanks;
 u64 osClockRate = 62500000;
 
@@ -131,27 +127,6 @@ s32 osEepromLongRead(UNUSED OSMesgQueue *mq, u8 address, u8 *buffer, int nbytes)
     u8 content[EEPROM_SIZE];
     s32 ret = -1;
 
-#ifdef TARGET_WEB
-    if (EM_ASM_INT({
-        var s = localStorage.sm64dsr_save_file;
-        if (s && s.length === 684) {
-            try {
-                var binary = atob(s);
-                if (binary.length === EEPROM_SIZE) {
-                    for (var i = 0; i < EEPROM_SIZE; i++) {
-                        HEAPU8[$0 + i] = binary.charCodeAt(i);
-                    }
-                    return 1;
-                }
-            } catch (e) {
-            }
-        }
-        return 0;
-    }, content)) {
-        memcpy(buffer, content + address * 8, nbytes);
-        ret = 0;
-    }
-#else
     fs_file_t *fp = fs_open(SAVE_FILENAME);
     if (fp == NULL) {
         return -1;
@@ -161,7 +136,7 @@ s32 osEepromLongRead(UNUSED OSMesgQueue *mq, u8 address, u8 *buffer, int nbytes)
         ret = 0;
     }
     fs_close(fp);
-#endif
+
     return ret;
 }
 
@@ -172,23 +147,13 @@ s32 osEepromLongWrite(UNUSED OSMesgQueue *mq, u8 address, u8 *buffer, int nbytes
     }
     memcpy(content + address * 8, buffer, nbytes);
 
-#ifdef TARGET_WEB
-    EM_ASM({
-        var str = "";
-        for (var i = 0; i < EEPROM_SIZE; i++) {
-            str += String.fromCharCode(HEAPU8[$0 + i]);
-        }
-        localStorage.sm64dsr_save_file = btoa(str);
-    }, content);
-    s32 ret = 0;
-#else
     FILE *fp = fopen(fs_get_write_path(SAVE_FILENAME), "wb");
     if (fp == NULL) {
         return -1;
     }
     s32 ret = fwrite(content, 1, EEPROM_SIZE, fp) == EEPROM_SIZE ? 0 : -1;
     fclose(fp);
-#endif
+
     return ret;
 }
 

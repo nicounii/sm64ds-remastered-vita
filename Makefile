@@ -23,8 +23,6 @@ DEFINES :=
 
 # Build and optimize for Raspberry Pi(s)
 TARGET_RPI ?= 0
-# Build for Emscripten/WebGL
-TARGET_WEB ?= 0
 # Build for the Wii U
 TARGET_WII_U ?= 0
 # Build for the 3DS
@@ -163,10 +161,8 @@ include defines.mk
 
 # MXE overrides
 ifeq ($(HOST_OS),Windows)
-  ifeq ($(TARGET_WEB),0)
-    ifeq ($(TARGET_PORT_CONSOLE),0)
-      WINDOWS_BUILD := 1
-    endif
+  ifeq ($(TARGET_PORT_CONSOLE),0)
+    WINDOWS_BUILD := 1
   endif
 
   ifeq ($(CROSS),i686-w64-mingw32.static-)
@@ -341,8 +337,6 @@ else ifeq ($(TARGET_ANDROID),1)
   DEFINES += TARGET_ANDROID=1 USE_GLES=1
 else ifeq ($(OSX_BUILD),1) # Modify GFX & SDL2 for OSX GL
   DEFINES += OSX_BUILD=1
-else ifeq ($(TARGET_WEB),1)
-  DEFINES += TARGET_WEB=1 USE_GLES=1
 else ifeq ($(TARGET_WII_U),1)
   DEFINES += TARGET_WII_U=1
 else ifeq ($(TARGET_N3DS),1)
@@ -483,10 +477,6 @@ endif
 # Set BITS (32/64) to compile for
 OPT_FLAGS += $(BITS)
 
-ifeq ($(TARGET_WEB),1)
-  OPT_FLAGS := -O2 -g4 --source-map-base http://localhost:8080/
-endif
-
 ifeq ($(TARGET_RPI),1)
   OPT_FLAGS := -O3 -march=native -mtune=native
 endif
@@ -499,11 +489,7 @@ endif
 BUILD_DIR_BASE := build
 TARGET_NAME :=
 
-ifeq ($(TARGET_WEB),1)
-  BUILD_DIR := $(BUILD_DIR_BASE)/$(VERSION)_web
-  EXE := $(BUILD_DIR)/$(TARGET).html
-  TARGET_NAME := Website
-else ifeq ($(TARGET_WII_U),1)
+ifeq ($(TARGET_WII_U),1)
   BUILD_DIR := $(BUILD_DIR_BASE)/$(VERSION)_wiiu
   EXE := $(BUILD_DIR)/$(TARGET).rpx
   TARGET_NAME := Nintendo Wii U
@@ -784,13 +770,8 @@ ifeq ($(OSX_BUILD),1) # As in, not using macOS
   AS := /usr/bin/as
 endif
 
-ifneq ($(TARGET_WEB),1) # As in, not-web PC port
-  CC ?= $(CROSS)gcc
-  CXX ?= $(CROSS)g++
-else
-  CC := emcc
-  CXX := emcc
-endif
+CC ?= $(CROSS)gcc
+CXX ?= $(CROSS)g++
 
 AS_MINGW := i686-w64-mingw32-as
 LD := $(CXX)
@@ -929,8 +910,6 @@ ifeq ($(WINDOWS_BUILD),1)
   ifeq ($(TARGET_BITS), 32)
     BACKEND_LDFLAGS += -ldbghelp
   endif
-else ifeq ($(TARGET_WEB),1)
-  CFLAGS := $(BACKEND_CFLAGS) $(DEF_INC_CFLAGS) -fno-strict-aliasing -fwrapv -s USE_SDL=2
 # Linux / Other builds below
 else
   CFLAGS := $(PLATFORM_CFLAGS) $(BACKEND_CFLAGS) $(DEF_INC_CFLAGS) -fno-strict-aliasing -fwrapv
@@ -982,10 +961,7 @@ ifeq ($(EXTERNAL_DATA),1)
   SKYCONV_ARGS := --store-names --write-tiles "$(SKYTILE_DIR)"
 endif
 
-ifeq ($(TARGET_WEB),1)
-LDFLAGS := -lm -lGL -lSDL2 $(NO_PIE_DEF) -s TOTAL_MEMORY=64MB -g4 --source-map-base http://localhost:8080/ -s "EXTRA_EXPORTED_RUNTIME_METHODS=['callMain']"
-
-else ifeq ($(TARGET_WII_U),1)
+ifeq ($(TARGET_WII_U),1)
 LDFLAGS := -lm $(NO_PIE_DEF) $(BACKEND_LDFLAGS) $(MACHDEP) $(RPXSPECS) $(LIBPATHS)
 
 else ifeq ($(TARGET_N3DS),1)
