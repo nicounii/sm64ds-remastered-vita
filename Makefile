@@ -46,10 +46,13 @@ $(eval $(call validate-option,COMPILER_OPT,debug debugmax default fast))
 
 # Build for Windows
 WINDOWS_BUILD ?= 0
+
 # Build for Android
 TARGET_ANDROID ?= 0
+
 # Makeflag to enable OSX fixes
 OSX_BUILD ?= 0
+
 # Specify the target you are building for, TARGET_BITS=0 means native
 TARGET_ARCH ?= native
 TARGET_BITS ?= 0

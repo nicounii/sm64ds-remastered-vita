@@ -56,6 +56,12 @@
 #define MAX_LIGHTS 2
 #define MAX_VERTICES 64
 
+#define FIXED_LIGHT_DIR_X 0.3f
+#define FIXED_LIGHT_DIR_Y 0.8f
+#define FIXED_LIGHT_DIR_Z 1.5f
+
+#define AMBIENT_LIGHT_BOOST 1.15f
+
 #ifdef EXTERNAL_DATA
 # define MAX_CACHED_TEXTURES 4096 // for preloading purposes
 # define HASH_SHIFT 0
@@ -838,12 +844,10 @@ static void gfx_transposed_matrix_mul(float res[3], const float a[3], const floa
 }
 
 static void calculate_normal_dir(const Light_t *light, float coeffs[3]) {
-    float light_dir[3] = {
-        light->dir[0] / 127.0f,
-        light->dir[1] / 127.0f,
-        light->dir[2] / 127.0f
-    };
-    gfx_transposed_matrix_mul(coeffs, light_dir, rsp.modelview_matrix_stack[rsp.modelview_matrix_stack_size - 1]);
+    (void) light;
+    coeffs[0] = FIXED_LIGHT_DIR_X;
+    coeffs[1] = FIXED_LIGHT_DIR_Y;
+    coeffs[2] = FIXED_LIGHT_DIR_Z;
     gfx_normalize_vector(coeffs);
 }
 
@@ -942,15 +946,26 @@ static void gfx_sp_vertex(size_t n_vertices, size_t dest_index, const Vtx *verti
             
             const bool useFirstColor = (dest_index & 1) == 0;
             const unsigned char* col = useFirstColor ? rsp.current_lights[rsp.current_num_lights - 1].col : rsp.current_lights[rsp.current_num_lights - 1].colc;
-            int r = col[0];
-            int g = col[1];
-            int b = col[2];
+            int r = col[0] * AMBIENT_LIGHT_BOOST;
+            int g = col[1] * AMBIENT_LIGHT_BOOST;
+            int b = col[2] * AMBIENT_LIGHT_BOOST;
+            
+            // Transform normal to world space using modelview matrix (rotation only)
+            float world_nx = vn->n[0] * rsp.modelview_matrix_stack[rsp.modelview_matrix_stack_size - 1][0][0] +
+                             vn->n[1] * rsp.modelview_matrix_stack[rsp.modelview_matrix_stack_size - 1][1][0] +
+                             vn->n[2] * rsp.modelview_matrix_stack[rsp.modelview_matrix_stack_size - 1][2][0];
+            float world_ny = vn->n[0] * rsp.modelview_matrix_stack[rsp.modelview_matrix_stack_size - 1][0][1] +
+                             vn->n[1] * rsp.modelview_matrix_stack[rsp.modelview_matrix_stack_size - 1][1][1] +
+                             vn->n[2] * rsp.modelview_matrix_stack[rsp.modelview_matrix_stack_size - 1][2][1];
+            float world_nz = vn->n[0] * rsp.modelview_matrix_stack[rsp.modelview_matrix_stack_size - 1][0][2] +
+                             vn->n[1] * rsp.modelview_matrix_stack[rsp.modelview_matrix_stack_size - 1][1][2] +
+                             vn->n[2] * rsp.modelview_matrix_stack[rsp.modelview_matrix_stack_size - 1][2][2];
             
             for (int i = 0; i < rsp.current_num_lights - 1; i++) {
                 float intensity = 0;
-                intensity += vn->n[0] * rsp.current_lights_coeffs[i][0];
-                intensity += vn->n[1] * rsp.current_lights_coeffs[i][1];
-                intensity += vn->n[2] * rsp.current_lights_coeffs[i][2];
+                intensity += world_nx * rsp.current_lights_coeffs[i][0];
+                intensity += world_ny * rsp.current_lights_coeffs[i][1];
+                intensity += world_nz * rsp.current_lights_coeffs[i][2];
                 intensity /= 127.0f;
                 if (intensity > 0.0f) {
                     col = useFirstColor ? rsp.current_lights[i].col : rsp.current_lights[i].colc;
@@ -966,12 +981,12 @@ static void gfx_sp_vertex(size_t n_vertices, size_t dest_index, const Vtx *verti
             
             if (rsp.geometry_mode & G_TEXTURE_GEN) {
                 float dotx = 0, doty = 0;
-                dotx += vn->n[0] * rsp.current_lookat_coeffs[0][0];
-                dotx += vn->n[1] * rsp.current_lookat_coeffs[0][1];
-                dotx += vn->n[2] * rsp.current_lookat_coeffs[0][2];
-                doty += vn->n[0] * rsp.current_lookat_coeffs[1][0];
-                doty += vn->n[1] * rsp.current_lookat_coeffs[1][1];
-                doty += vn->n[2] * rsp.current_lookat_coeffs[1][2];
+                dotx += world_nx * rsp.current_lookat_coeffs[0][0];
+                dotx += world_ny * rsp.current_lookat_coeffs[0][1];
+                dotx += world_nz * rsp.current_lookat_coeffs[0][2];
+                doty += world_nx * rsp.current_lookat_coeffs[1][0];
+                doty += world_ny * rsp.current_lookat_coeffs[1][1];
+                doty += world_nz * rsp.current_lookat_coeffs[1][2];
                 
                 U = (int32_t)((dotx / 127.0f + 1.0f) / 4.0f * rsp.texture_scaling_factor.s);
                 V = (int32_t)((doty / 127.0f + 1.0f) / 4.0f * rsp.texture_scaling_factor.t);
