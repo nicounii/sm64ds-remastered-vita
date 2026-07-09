@@ -336,10 +336,15 @@ void audio_game_loop_tick(void) {
 }
 
 void change_audio_volumes(void) {
+#ifndef TARGET_N64
     const f32 master_mod = (f32)configMasterVolume / 127.0f;
     set_sequence_player_volume(SEQ_PLAYER_LEVEL, (f32)configMusicVolume / 127.0f * master_mod);
     set_sequence_player_volume(SEQ_PLAYER_SFX, (f32)configSfxVolume / 127.0f * master_mod);
     set_sequence_player_volume(SEQ_PLAYER_ENV, (f32)configEnvVolume / 127.0f * master_mod);
+#else
+    // N64 has no configurable volume levels
+    (void)0;
+#endif
 }
 
 /**

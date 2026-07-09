@@ -21,6 +21,8 @@ DEFINES :=
 
 # Manual target defines
 
+# Build for original N64
+TARGET_N64 ?= 0
 # Build and optimize for Raspberry Pi(s)
 TARGET_RPI ?= 0
 # Build for the Wii U
@@ -111,8 +113,13 @@ ifneq ($(shell which termux-setup-storage 2>/dev/null),)
   endif
 endif
 
-GRUCODE := f3dex2e
-PC_PORT_DEFINES := 1
+ifeq ($(TARGET_N64),0)
+  GRUCODE := f3dex2e
+  PC_PORT_DEFINES := 1
+else
+  GRUCODE ?= f3dzex
+  NO_LDIV := 1
+endif
 
 ifeq ($(TARGET_WII_U),1)
   RENDER_API := GX2
@@ -342,13 +349,19 @@ else ifeq ($(GRUCODE),super3d) # Super3D
   $(warning Super3D is experimental. Try at your own risk.)
   GRU_DEFINES += SUPER3D_GBI=1 F3D_NEW=1
 else ifeq ($(GRUCODE),f3dex2e) # Fast3DEX2 Extended (PC Only)
-  GRU_DEFINES += F3DEX_GBI_2E=1
+  ifeq ($(TARGET_N64),1)
+    $(error f3dex2e is only supported on PC Port)
+  else
+    GRU_DEFINES += F3DEX_GBI_2E=1
+  endif
 endif
 
 DEFINES += $(GRU_DEFINES)
 
 # Specify target defines
-ifeq ($(TARGET_RPI),1) # Define RPi to change SDL2 title & GLES2 hints
+ifeq ($(TARGET_N64),1)
+  DEFINES += TARGET_N64=1 TARGET_PORT_CONSOLE=1 _FINALROM=1
+else ifeq ($(TARGET_RPI),1) # Define RPi to change SDL2 title & GLES2 hints
   DEFINES += TARGET_RPI=1 USE_GLES=1
 else ifeq ($(TARGET_ANDROID),1)
   DEFINES += TARGET_ANDROID=1 USE_GLES=1
@@ -483,7 +496,16 @@ endif
 # Optimization flags                                                           #
 #==============================================================================#
 
-ifeq ($(COMPILER_OPT),default)
+ifeq ($(TARGET_N64),1)
+  ifeq ($(COMPILER_TYPE),gcc)
+    MIPSISET     := -mips3
+    OPT_FLAGS    := -Ofast
+  else ifeq ($(COMPILER_TYPE),clang)
+    MIPSISET     := -mips2
+    OPT_FLAGS    := -Ofast
+  endif
+else
+  ifeq ($(COMPILER_OPT),default)
   OPT_FLAGS := -O2
 else ifeq ($(COMPILER_OPT),debug)
   OPT_FLAGS := -g
@@ -500,6 +522,8 @@ ifeq ($(TARGET_RPI),1)
   OPT_FLAGS := -O3 -march=native -mtune=native
 endif
 
+endif
+
 #==============================================================================#
 # Target Executable and Sources                                                #
 #==============================================================================#
@@ -508,7 +532,12 @@ endif
 BUILD_DIR_BASE := build
 TARGET_NAME :=
 
-ifeq ($(TARGET_WII_U),1)
+ifeq ($(TARGET_N64),1)
+  BUILD_DIR := $(BUILD_DIR_BASE)/$(VERSION)
+  EXE := $(BUILD_DIR)/$(TARGET)
+  ROM := $(BUILD_DIR)/$(TARGET).z64
+  TARGET_NAME := Nintendo 64
+else ifeq ($(TARGET_WII_U),1)
   BUILD_DIR := $(BUILD_DIR_BASE)/$(VERSION)_wiiu
   EXE := $(BUILD_DIR)/$(TARGET).rpx
   TARGET_NAME := Nintendo Wii U
@@ -567,8 +596,11 @@ LEVEL_DIRS := $(patsubst levels/%,%,$(dir $(wildcard levels/*/header.h)))
 SRC_DIRS := src src/engine src/game src/audio src/menu src/buffers src/extras actors levels bin bin/$(VERSION) data assets sound
 BOOT_DIR := src/boot
 
-# Specify target folders
-PLATFORM_DIR := platform
+ifeq ($(TARGET_N64),1)
+  SRC_DIRS += asm lib src/extras/n64
+else
+  # Specify target folders
+  PLATFORM_DIR := platform
 
 SRC_DIRS += src/pc src/pc/audio src/pc/controller src/pc/crash src/pc/fs src/pc/fs/packtypes src/pc/gfx
 ifeq ($(WINDOWS_BUILD),1)
@@ -583,6 +615,7 @@ else ifeq ($(TARGET_ANDROID),1)
   PLATFORM_DIR := $(PLATFORM_DIR)/android
 endif
 SRC_DIRS += $(PLATFORM_DIR)
+endif
 
 ifeq ($(TARGET_PORT_CONSOLE),0)
   ifeq ($(DISCORDRPC),1)
@@ -633,10 +666,20 @@ ifeq ($(WINDOWS_BUILD),1)
   RC_FILES := $(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.rc))
 endif
 
+ifeq ($(TARGET_N64),1)
+  C_FILES += $(foreach dir,$(BOOT_DIR),$(wildcard $(dir)/*.c))
+  S_FILES += $(foreach dir,$(BOOT_DIR),$(wildcard $(dir)/*.s))
+
+  ULTRA_C_FILES := $(foreach dir,$(ULTRA_SRC_DIRS),$(wildcard $(dir)/*.c))
+  ULTRA_S_FILES := $(foreach dir,$(ULTRA_SRC_DIRS),$(wildcard $(dir)/*.s))
+  LIBGCC_C_FILES := $(foreach dir,$(LIBGCC_SRC_DIRS),$(wildcard $(dir)/*.c))
+endif
+
 GENERATED_C_FILES := $(BUILD_DIR)/assets/player_anim_data.c $(BUILD_DIR)/assets/demo_data.c
 
 GENERATED_C_FILES += $(addprefix $(BUILD_DIR)/bin/,$(addsuffix _skybox.c,$(notdir $(basename $(wildcard textures/skyboxes/*.png)))))
 
+ifneq ($(TARGET_N64),1)
 ULTRA_C_FILES := \
   audio/bnkf.c \
   gu/lookatref.c \
@@ -650,8 +693,11 @@ ULTRA_C_FILES := \
   libc/ldiv.c
 
 ULTRA_C_FILES := $(addprefix lib/ultra/,$(ULTRA_C_FILES))
+endif
 
+ifneq ($(TARGET_N64),1)
 C_FILES += $(addprefix src/boot/,memory.c)
+endif
 
 SOUND_BANK_FILES := $(wildcard sound/sound_banks/*.json)
 SOUND_SEQUENCE_DIRS := sound/sequences sound/sequences/$(VERSION)
@@ -684,6 +730,10 @@ ifeq ($(GODDARD_MFACE),1)
   GODDARD_O_FILES := $(foreach file,$(GODDARD_C_FILES),$(BUILD_DIR)/$(file:.c=.o))
 endif
 
+ifeq ($(TARGET_N64),1)
+  LIBGCC_O_FILES := $(foreach file,$(LIBGCC_C_FILES),$(BUILD_DIR)/$(file:.c=.o))
+endif
+
 RPC_LIBS :=
 ifeq ($(TARGET_PORT_CONSOLE),0)
   ifeq ($(DISCORDRPC),1)
@@ -700,12 +750,18 @@ endif
 
 # Automatic dependency files
 DEP_FILES := $(O_FILES:.o=.d) $(ULTRA_O_FILES:.o=.d) $(GODDARD_O_FILES:.o=.d) $(BUILD_DIR)/$(LD_SCRIPT).d
+ifeq ($(TARGET_N64),1)
+  DEP_FILES += $(LIBGCC_O_FILES:.o=.d)
+endif
 
 #==============================================================================#
 # Compiler Options                                                             #
 #==============================================================================#
 
 INCLUDE_DIRS := include $(BUILD_DIR) $(BUILD_DIR)/include src .
+ifeq ($(TARGET_N64),1)
+  INCLUDE_DIRS += include/gcc
+endif
 ifeq ($(TARGET_ANDROID),1)
   INCLUDE_DIRS += $(PLATFORM_DIR)/SDL/include
 endif
@@ -782,7 +838,66 @@ ifeq ($(TARGET_N3DS),1)
   MINIMAP_T3X_HEADERS := $(foreach file,$(MINIMAP_PNG),$(BUILD_DIR)/$(file:.png=_t3x.h))
 endif
 
-ifeq ($(TARGET_WII_U),1)
+ifeq ($(TARGET_N64),1)
+# detect prefix for MIPS toolchain
+ifneq ($(call find-command,mips64-elf-ld),)
+  CROSS := mips64-elf-
+else ifneq ($(call find-command,mips64-ld),)
+  CROSS := mips64-
+else ifneq ($(call find-command,mips-linux-gnu-ld),)
+  CROSS := mips-linux-gnu-
+else ifneq ($(call find-command,mips64-linux-gnu-ld),)
+  CROSS := mips64-linux-gnu-
+else ifneq ($(call find-command,mips-ld),)
+  CROSS := mips-
+else
+  $(error Unable to detect a suitable MIPS toolchain installed)
+endif
+
+# change the compiler to gcc, to use the default, install the gcc-mips-linux-gnu package
+ifeq ($(COMPILER_TYPE),gcc)
+  CC      := $(CROSS)gcc
+  CPP     := cpp
+else ifeq ($(COMPILER_TYPE),clang)
+  CC      := clang
+  CPP     := clang
+endif
+# use GNU binutils for assembler, linker, archiver, and object tools
+AS        := $(CROSS)as
+LD        := $(CROSS)ld
+AR        := $(CROSS)ar
+OBJDUMP   := $(CROSS)objdump
+OBJCOPY   := $(CROSS)objcopy
+
+# Check code syntax with host compiler
+CFLAGS := -G 0 -nostdinc $(MIPSISET) $(DEF_INC_CFLAGS) $(OPT_FLAGS)
+
+ifeq ($(COMPILER_TYPE),gcc)
+  CFLAGS += -mno-shared -march=mips3 -mfix4300 -mabi=32 -mhard-float -mdivide-breaks -fno-stack-protector -fno-common -fno-zero-initialized-in-bss -fno-PIC -mno-abicalls -fno-strict-aliasing -fno-inline-functions -ffreestanding -fwrapv -Wall -Wextra
+  CFLAGS += -Wno-missing-braces
+else ifeq ($(COMPILER_TYPE),clang)
+  CFLAGS += -mfpxx -target mips -mabi=32 -mhard-float -fomit-frame-pointer -fno-stack-protector -fno-common -I include -I src/ -I $(BUILD_DIR)/include -fno-PIC -mno-abicalls -fno-strict-aliasing -fno-inline-functions -ffreestanding -fwrapv -Wall -Wextra
+  CFLAGS += -Wno-missing-braces
+else
+  CFLAGS += -non_shared -Wab,-r4300_mul -Xcpluscomm -Xfullwarn -signed -32
+endif
+
+ifeq ($(CPP_ASSEMBLY),1)
+  ASFLAGS := -march=vr4300 -mabi=32 $(foreach i,$(INCLUDE_DIRS),-I$(i)) $(foreach d,$(ASMDEFINES),--defsym $(d))
+else
+  ASMFLAGS := -G 0 $(DEF_INC_CFLAGS) -w -nostdinc -c -march=mips3 -mfix4300 -mno-abicalls -DMIPSEB -D_LANGUAGE_ASSEMBLY -D_MIPS_SIM=1 -D_MIPS_SZLONG=32
+endif
+
+RSPASMFLAGS := $(foreach d,$(ASMDEFINES),-definelabel $(subst =, ,$(d)))
+
+OBJCOPYFLAGS := --pad-to=0x800000 --gap-fill=0xFF
+SYMBOL_LINKING_FLAGS := --no-check-sections $(addprefix -R ,$(SEG_FILES))
+LDFLAGS := -T $(BUILD_DIR)/$(LD_SCRIPT) -Map $(BUILD_DIR)/sm64.$(VERSION).map $(SYMBOL_LINKING_FLAGS)
+
+CFLAGS += $(CUSTOM_C_DEFINES)
+ASMFLAGS += $(CUSTOM_C_DEFINES)
+
+else ifeq ($(TARGET_WII_U),1)
 
 LD := $(CXX)
 CPP := powerpc-eabi-cpp
@@ -990,6 +1105,16 @@ ifeq ($(TARGET_VITA),1)
   CFLAGS := $(PLATFORM_CFLAGS) $(BACKEND_CFLAGS) $(DEF_INC_CFLAGS) -fno-strict-aliasing -fwrapv -Wno-int-to-pointer-cast -D__VITA__=1
 endif
 
+ifeq ($(TARGET_N64),1)
+  # CFLAGS at line 1031 gets overwritten, losing the MIPS-specific flags
+  # from line 833.  Restore the critical ones here.
+  CFLAGS += -fno-stack-protector -fno-common -mno-abicalls -fno-zero-initialized-in-bss -mfix4300 -G 0
+  # exceptasm.s uses .set gp=64 (MIPS3 64-bit ld/sd), which tags it as
+  # mips:4000.  The rest of the build uses GCC's default arch (mips32r2).
+  # Suppress the ISA-mismatch merge error; the ABI (32-bit) is the same.
+  BACKEND_LDFLAGS += --no-warn-mismatch
+endif
+
 ifeq ($(CPP_ASSEMBLY),1)
   ASFLAGS := $(foreach i,$(INCLUDE_DIRS),-I$(i))
   ASFLAGS_DEFSYM := $(foreach d,$(ASMDEFINES),--defsym $(d))
@@ -1059,6 +1184,13 @@ else ifeq ($(OSX_BUILD),1)
 else ifeq ($(HOST_OS),Haiku)
   LDFLAGS := $(BACKEND_LDFLAGS) $(NO_PIE_DEF)
 
+else ifeq ($(TARGET_N64),1)
+  # N64 LDFLAGS already set earlier — keep them
+  # exceptasm.s uses .set gp=64 (MIPS3 64-bit ld/sd), which tags it as
+  # mips:4000.  The rest of the build uses GCC's default arch (mips32r2).
+  # Suppress the ISA-mismatch merge error; the ABI (32-bit) is the same.
+  LDFLAGS += --no-warn-mismatch
+
 else
   LDFLAGS := $(BITS) -march=$(TARGET_ARCH) -lm $(BACKEND_LDFLAGS) -lpthread -ldl $(NO_PIE_DEF)
   ifeq ($(DISCORDRPC),1)
@@ -1126,7 +1258,9 @@ endef
 # Main Targets                                                                 #
 #==============================================================================#
 
-ifeq ($(TARGET_ANDROID),1)
+ifeq ($(TARGET_N64),1)
+ALL_FILE := $(ROM)
+else ifeq ($(TARGET_ANDROID),1)
 ALL_FILE := $(APK_SIGNED)
 else
 ALL_FILE := $(EXE)
@@ -1138,9 +1272,14 @@ all: $(ALL_FILE)
 	@$(PRINT) "==== Build Details ====$(NO_COL)\n"
 	@$(PRINT) "${RED}File:           $(GREEN)$(ALL_FILE)$(NO_COL)\n"
 	@$(PRINT) "${RED}Version:        $(GREEN)$(VERSION)$(NO_COL)\n"
+ifeq ($(TARGET_N64),1)
+	@$(PRINT) "${RED}Microcode:      $(GREEN)$(GRUCODE)$(NO_COL)\n"
+endif
 	@$(PRINT) "${RED}Target:         $(GREEN)$(TARGET_NAME)$(NO_COL)\n"
 
-ifeq ($(TARGET_ANDROID),1)
+ifeq ($(TARGET_N64),1)
+  EXE_DEPEND := $(ROM)
+else ifeq ($(TARGET_ANDROID),1)
   EXE_DEPEND := $(APK_SIGNED)
 else
   EXE_DEPEND := $(EXE)
@@ -1250,6 +1389,11 @@ endif
 
 ALL_DIRS := $(BUILD_DIR) $(addprefix $(BUILD_DIR)/,$(SRC_DIRS) $(BOOT_DIR) $(GODDARD_SRC_DIRS) $(ULTRA_SRC_DIRS) $(ULTRA_BIN_DIRS) $(BIN_DIRS) $(TEXTURE_DIRS) $(TEXT_DIRS) $(SOUND_SAMPLE_DIRS) $(addprefix levels/,$(LEVEL_DIRS)) include) $(MIO0_DIR) $(addprefix $(MIO0_DIR)/,$(VERSION)) $(SOUND_BIN_DIR) $(SOUND_BIN_DIR)/sequences/$(VERSION)
 
+ifeq ($(TARGET_N64),1)
+  RSP_DIR := $(BUILD_DIR)/rsp
+  ALL_DIRS += $(RSP_DIR) $(BUILD_DIR)/$(LIBGCC_SRC_DIRS)
+endif
+
 ifeq ($(EXTERNAL_DATA),1)
   ALL_DIRS += $(SKYTILE_DIR)
 endif
@@ -1263,6 +1407,19 @@ endif
 DUMMY != mkdir -p $(ALL_DIRS)
 
 $(BUILD_DIR)/include/text_strings.h: $(BUILD_DIR)/include/text_menu_strings.h
+
+$(BUILD_DIR)/include/text_strings.h: $(BUILD_DIR)/include/text_menu_strings.h
+
+ifeq ($(TARGET_N64),1)
+  CRASH_TEXTURE_FILES := $(wildcard $(TEXTURE_DIR)/crash_screen/*.png)
+  CRASH_TEXTURE_C_FILES := $(addprefix $(BUILD_DIR)/,$(patsubst %.png,%.inc.c,$(CRASH_TEXTURE_FILES)))
+  $(BUILD_DIR)/asm/boot.o: $(IPL3_RAW_FILES)
+  $(BUILD_DIR)/src/boot/crash_screen.o: $(CRASH_TEXTURE_C_FILES)
+  $(CRASH_TEXTURE_C_FILES): TEXTURE_ENCODING := u32
+  $(BUILD_DIR)/lib/rsp.o: $(RSP_DIR)/rspboot.bin $(RSP_DIR)/fast3d.bin $(RSP_DIR)/audio.bin
+else
+  $(BUILD_DIR)/src/pc/crash/crash_handler.o: $(CRASH_TEXTURE_PC_C_FILES)
+endif
 
 ifeq ($(EXT_OPTIONS_MENU),1)
   $(BUILD_DIR)/include/text_strings.h: $(BUILD_DIR)/include/text_options_strings.h
@@ -1283,6 +1440,10 @@ endif
 $(BUILD_DIR)/src/menu/file_select.o:    $(BUILD_DIR)/include/text_strings.h $(LANG_O_FILES)
 $(BUILD_DIR)/src/menu/star_select.o:    $(BUILD_DIR)/include/text_strings.h $(LANG_O_FILES)
 $(BUILD_DIR)/src/game/ingame_menu.o:    $(BUILD_DIR)/include/text_strings.h $(LANG_O_FILES)
+
+ifeq ($(TARGET_N64),1)
+  $(BUILD_DIR)/src/boot/ext_mem_screen.o: $(BUILD_DIR)/include/text_strings.h
+endif
 
 ifeq ($(EXT_OPTIONS_MENU),1)
   $(BUILD_DIR)/src/extras/cheats.o:       $(BUILD_DIR)/include/text_strings.h $(LANG_O_FILES)
@@ -1332,6 +1493,60 @@ $(BUILD_DIR)/%.ci8.inc.c: %.ci8.png
 $(BUILD_DIR)/%.ci4.inc.c: %.ci4.png
 	$(call print,Converting CI:,$<,$@)
 	$(PYTHON) $(BINPNG) $< $@ 4
+endif
+
+#==============================================================================#
+# N64 Per-File Optimization Flags                                              #
+#==============================================================================#
+
+ifeq ($(TARGET_N64),1)
+  $(BUILD_DIR)/actors/%.o: OPT_FLAGS := -Ofast -mlong-calls
+  $(BUILD_DIR)/levels/%.o: OPT_FLAGS := -Ofast -mlong-calls
+  $(BUILD_DIR)/src/audio/heap.o: OPT_FLAGS := -Os -fno-jump-tables
+  $(BUILD_DIR)/src/audio/synthesis.o: OPT_FLAGS := -Os -fno-jump-tables
+  $(BUILD_DIR)/lib/ultra/%.o: OPT_FLAGS := -O2
+  $(BUILD_DIR)/lib/ultra/os/exceptasm.o: ASMFLAGS := -march=vr4300 -mabi=32 $(DEF_INC_CFLAGS) $(CUSTOM_C_DEFINES) -w -nostdinc -c -mno-abicalls -DMIPSEB -D_LANGUAGE_ASSEMBLY -D_MIPS_SIM=1
+  $(BUILD_DIR)/lib/gcc/%.o: OPT_FLAGS := -O2
+
+  ifeq ($(COMPILER_TYPE),gcc)
+    $(BUILD_DIR)/src/engine/surface_collision.o: OPT_FLAGS += --param case-values-threshold=20 --param max-completely-peeled-insns=100 --param max-unrolled-insns=100 -finline-limit=0 -fno-inline -freorder-blocks-algorithm=simple -falign-functions=32
+    $(BUILD_DIR)/src/engine/math_util.o: OPT_FLAGS +=-fno-unroll-loops -fno-peel-loops --param case-values-threshold=20 -falign-functions=32
+    $(BUILD_DIR)/src/game/rendering_graph_node.o: OPT_FLAGS += --param case-values-threshold=20 --param max-completely-peeled-insns=100 --param max-unrolled-insns=100 -finline-limit=0 -freorder-blocks-algorithm=simple -falign-functions=32
+  endif
+endif
+
+#==============================================================================#
+# N64 Compressed Segment Generation                                            #
+#==============================================================================#
+
+ifeq ($(TARGET_N64),1)
+# Link segment file to resolve external labels
+$(BUILD_DIR)/%.elf: $(BUILD_DIR)/%.o
+	$(call print,Linking ELF file:,$<,$@)
+	$(V)$(LD) -e 0 -Ttext=$(SEGMENT_ADDRESS) -Map $@.map -o $@ $<
+# Override for leveldata.elf, which otherwise matches the above pattern.
+.SECONDEXPANSION:
+$(LEVEL_ELF_FILES): $(BUILD_DIR)/levels/%/leveldata.elf: $(BUILD_DIR)/levels/%/leveldata.o $(BUILD_DIR)/bin/$$(TEXTURE_BIN).elf
+	$(call print,Linking level ELF file:,$<,$@)
+	$(V)$(LD) -e 0 -Ttext=$(SEGMENT_ADDRESS) -Map $@.map --just-symbols=$(BUILD_DIR)/bin/$(TEXTURE_BIN).elf -o $@ $<
+
+$(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf
+	$(call print,Extracting compressible data from:,$<,$@)
+	$(V)$(EXTRACT_DATA_FOR_MIO) $< $@
+
+$(BUILD_DIR)/levels/%/leveldata.bin: $(BUILD_DIR)/levels/%/leveldata.elf
+	$(call print,Extracting compressible data from:,$<,$@)
+	$(V)$(EXTRACT_DATA_FOR_MIO) $< $@
+
+# Compress binary file
+$(BUILD_DIR)/%.mio0: $(BUILD_DIR)/%.bin
+	$(call print,Compressing:,$<,$@)
+	$(V)$(MIO0TOOL) $< $@
+
+# convert binary mio0 to object file
+$(BUILD_DIR)/%.mio0.o: $(BUILD_DIR)/%.mio0
+	$(call print,Converting MIO0 to ELF:,$<,$@)
+	$(V)$(LD) -r -b binary $< -o $@
 endif
 
 #==============================================================================#
@@ -1516,7 +1731,35 @@ endif
 # Executable Generation                                                        #
 #==============================================================================#
 
-ifeq ($(TARGET_WII_U),1)
+ifeq ($(TARGET_N64),1)
+MIO0_OBJ_FILES := $(foreach file,$(MIO0_FILES),$(file).o)
+
+$(BUILD_DIR)/libultra.a: $(ULTRA_O_FILES)
+	$(call print,Archiving ultra objects:,$^,$@)
+	$(V)$(AR) rvs $@ $(ULTRA_O_FILES) 2> /dev/null
+
+$(BUILD_DIR)/libgcc.a: $(LIBGCC_O_FILES)
+	$(call print,Archiving gcc objects:,$^,$@)
+	$(V)$(AR) rvs $@ $(LIBGCC_O_FILES) 2> /dev/null
+
+$(BUILD_DIR)/$(LD_SCRIPT): $(LD_SCRIPT)
+	$(call print,Preprocessing linker script:,$<,$@)
+	$(V)$(CPP) $(CPPFLAGS) -I include -I $(BUILD_DIR) $(DEF_INC_CFLAGS) -MMD -MP -MT $@ -o $@ $< && sed -i 's|BUILD_DIR|$(BUILD_DIR)|g' $@
+
+$(ELF): $(O_FILES) $(MIO0_OBJ_FILES) $(BUILD_DIR)/libultra.a $(GODDARD_O_FILES) $(BUILD_DIR)/libgcc.a $(BUILD_DIR)/$(LD_SCRIPT)
+	@$(PRINT) "$(RED)Linking ELF file: $(GREEN)$@ $(NO_COL)\n"
+	$(V)$(LD) $(LDFLAGS) -o $@ $(O_FILES) $(BUILD_DIR)/libultra.a $(GODDARD_O_FILES) $(MIO0_OBJ_FILES) $(BUILD_DIR)/libgcc.a
+
+$(ROM): $(ELF)
+	$(V)$(OBJCOPY) $(OBJCOPYFLAGS) $< $(@:.z64=.bin) -O binary
+	$(V)$(N64CKSUM) $(@:.z64=.bin) $@
+
+# Assemble RSP microcode
+$(BUILD_DIR)/rsp/%.bin $(BUILD_DIR)/rsp/%_data.bin: rsp/%.s
+	$(call print,Assembling RSP microcode:,$<,$@)
+	$(V)$(RSPASM) -sym $@.sym $(RSPASMFLAGS) -strequ CODE_FILE $(BUILD_DIR)/rsp/$*.bin -strequ DATA_FILE $(BUILD_DIR)/rsp/$*_data.bin $<
+
+else ifeq ($(TARGET_WII_U),1)
 $(ELF): $(O_FILES) $(MIO0_FILES:.mio0=.o) $(ULTRA_O_FILES) $(GODDARD_O_FILES) $(BUILD_DIR)/$(RPC_LIBS)
 	@$(PRINT) "$(RED)Linking ELF file: $(GREEN)$@ $(NO_COL)\n"
 	$(V)$(LD) -L $(BUILD_DIR) -o $@ $(O_FILES) $(ULTRA_O_FILES) $(GODDARD_O_FILES) $(LDFLAGS)
@@ -1616,6 +1859,7 @@ endif
 
 # For the crash handler on Windows and Linux
 ifeq ($(TARGET_PORT_CONSOLE),0)
+ifneq ($(TARGET_N64),1)
 all: PC_EXE_MAP
 PC_EXE_MAP: $(EXE)
 	$(V)objdump -t $(EXE) > $(BUILD_DIR)/sm64pc.map
@@ -1624,6 +1868,7 @@ endif
 $(EXE): $(O_FILES) $(MIO0_FILES:.mio0=.o) $(ULTRA_O_FILES) $(GODDARD_O_FILES) $(BUILD_DIR)/$(RPC_LIBS)
 	$(V)$(LD) -L $(BUILD_DIR) -o $@ $(O_FILES) $(ULTRA_O_FILES) $(GODDARD_O_FILES) $(LDFLAGS)
 endif
+endif # End of Executable Generation chain
 
 # Remove built-in rules, to improve performance
 MAKEFLAGS += -r

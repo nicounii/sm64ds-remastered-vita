@@ -60,9 +60,9 @@ s8 gResetTimer = 0;
 s8 gNmiResetBarsTimer = 0;
 s8 D_8032C650 = 0;
 
-int gDebugLevelSelect = FALSE;
-int gShowProfiler = FALSE;
-int gShowDebugText = FALSE;
+bool gDebugLevelSelect = FALSE;
+bool gShowProfiler = FALSE;
+bool gShowDebugText = FALSE;
 
 // unused
 void handle_debug_key_sequences(void) {

@@ -6,7 +6,7 @@
 #define IS_BIG_ENDIAN (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
 
 // Using 8 here instead of sizeof(size_t) to ensure compatibility
-#define SIZEOF_POINTER (size_t)8
+#define SIZEOF_POINTER 8
 #define DOUBLE_SIZE_ON_64_BIT(size) ((size) * (SIZEOF_POINTER / 4))
 
 #endif // PLATFORM_INFO_H

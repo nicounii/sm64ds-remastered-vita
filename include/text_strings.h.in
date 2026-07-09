@@ -234,4 +234,13 @@
 
 #endif
 
+/**
+ * Expansion Pak Error Screen text
+ */
+#ifdef USE_EXT_RAM
+#define TEXT_CONSOLE_8MB _("If you're using an N64 console, then you will need to buy an expansion pak to play this ROM hack.")
+#define TEXT_PJ64 _("If you are using PJ64 1.6, go to: Options > Settings > Rom Settings Tab > Memory Size then select 8 MB from the drop-down box.")
+#define TEXT_PJ64_2 _("If you are using PJ64 2.X, go to: Options > Settings > Config: > Memory Size, select 8 MB")
+#endif
+
 #endif // TEXT_STRINGS_H

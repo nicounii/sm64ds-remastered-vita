@@ -10,6 +10,7 @@
 #include <types.h>
 #include "segments.h"
 #include "text_strings.h"
+#include "ext_mem_screen.h"
 #include "game/game_init.h"
 #include "game/main.h"
 #include "game/print.h"

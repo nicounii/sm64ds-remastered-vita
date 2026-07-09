@@ -143,6 +143,13 @@ s32 osMotorStart(OSPfs *pfs) {
 #endif
 
 #if LIBULTRA_VERSION >= OS_VER_J
+s32 osMotorStart(OSPfs *pfs) {
+    return __osMotorAccess(pfs, 1);
+}
+s32 osMotorStop(OSPfs *pfs) {
+    return __osMotorAccess(pfs, 0);
+}
+
 void __osMakeMotorData(int channel, OSPifRam* mdata)
 #else // _MakeMotorData
 void __osMakeMotorData(int channel, u16 address, u8 *buffer, OSPifRam *mdata)

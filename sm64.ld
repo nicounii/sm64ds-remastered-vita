@@ -48,7 +48,9 @@ OUTPUT_ARCH (mips)
     BEGIN_SEG(name, 0x1A000000) \
     { \
         BUILD_DIR/levels/name/script.o(.data); \
+        BUILD_DIR/levels/name/script.o(.rodata*); \
         BUILD_DIR/levels/name/geo.o(.data); \
+        BUILD_DIR/levels/name/geo.o(.rodata*); \
     } \
     END_SEG(name)
 
@@ -62,6 +64,7 @@ OUTPUT_ARCH (mips)
     BEGIN_SEG(name##_geo, geoAddr) \
     { \
         BUILD_DIR/actors/name##_geo.o(.data); \
+        BUILD_DIR/actors/name##_geo.o(.rodata*); \
     } \
     END_SEG(name##_geo)
 
@@ -213,7 +216,10 @@ SECTIONS
     #endif
     BEGIN_SEG(entry, 0x10000000)
     {
-        BUILD_DIR/levels/entry.o(.data);
+        BUILD_DIR/levels/entry.o(.data*);
+        BUILD_DIR/levels/entry.o(.rodata*);
+        BUILD_DIR/levels/error_screen.o(.data*);
+        BUILD_DIR/levels/error_screen.o(.rodata*);
     }
     END_SEG(entry)
 
@@ -254,7 +260,8 @@ SECTIONS
     /* use segmented addressing for behaviors */
     BEGIN_SEG(behavior, 0x13000000)
     {
-        BUILD_DIR/data/behavior_data.o(.data);
+        BUILD_DIR/data/behavior_data.o(.data*);
+        BUILD_DIR/data/behavior_data.o(.rodata*);
     }
     END_SEG(behavior)
 
@@ -318,7 +325,9 @@ SECTIONS
     BEGIN_SEG(intro, 0x14000000)
     {
         BUILD_DIR/levels/intro/script.o(.data);
+        BUILD_DIR/levels/intro/script.o(.rodata*);
         BUILD_DIR/levels/intro/geo.o(.data);
+        BUILD_DIR/levels/intro/geo.o(.rodata*);
     }
     END_SEG(intro)
     BEGIN_SEG(intro_segment_7, 0x07000000)
@@ -361,7 +370,9 @@ SECTIONS
     BEGIN_SEG(menu, 0x14000000)
     {
         BUILD_DIR/levels/menu/script.o(.data);
+        BUILD_DIR/levels/menu/script.o(.rodata*);
         BUILD_DIR/levels/menu/geo.o(.data);
+        BUILD_DIR/levels/menu/geo.o(.rodata*);
     }
     END_SEG(menu)
     BEGIN_SEG(menu_segment_7, 0x07000000)
@@ -374,6 +385,7 @@ SECTIONS
     BEGIN_SEG(scripts, 0x15000000)
     {
         BUILD_DIR/levels/scripts.o(.data);
+        BUILD_DIR/levels/scripts.o(.rodata*);
     }
     END_SEG(scripts)
 

@@ -164,9 +164,11 @@ static void optvideo_reset_window(UNUSED struct Option *self, s32 arg) {
 }
 #endif
 
+#if !defined(TARGET_PORT_CONSOLE)
 static void optvideo_apply(UNUSED struct Option *self, s32 arg) {
     if (!arg) configWindow.settings_changed = true;
 }
+#endif
 
 /* submenu option lists */
 #if !defined(TARGET_PORT_CONSOLE)
@@ -212,17 +214,22 @@ static struct Option optsVideo[] = {
 };
 #endif
 
+#if !defined(TARGET_PORT_CONSOLE)
 static struct Option optsAudio[] = {
     DEF_OPT_SCROLL( optsAudioStr[0], &configMasterVolume, 0, MAX_VOLUME, 1 ),
     DEF_OPT_SCROLL( optsAudioStr[1], &configMusicVolume, 0, MAX_VOLUME, 1),
     DEF_OPT_SCROLL( optsAudioStr[2], &configSfxVolume, 0, MAX_VOLUME, 1),
     DEF_OPT_SCROLL( optsAudioStr[3], &configEnvVolume, 0, MAX_VOLUME, 1),
 };
+#endif
 
+#if !defined(TARGET_PORT_CONSOLE)
 static struct Option optsSettings[] = {
     DEF_OPT_TOGGLE( optsSettingsStr[0], &configHUD ),
 };
+#endif
 
+#if !defined(TARGET_PORT_CONSOLE)
 static struct Option optsDsSettings[] = {
     DEF_OPT_CHOICE( optsVideoStr[1], &configFiltering, filterChoices ),
     DEF_OPT_CHOICE( optsDsSettingsStr[1], &configDash, movementChoices ),
@@ -232,6 +239,7 @@ static struct Option optsDsSettings[] = {
     DEF_OPT_TOGGLE( optsDsSettingsStr[4], &configJHeight ),
     DEF_OPT_TOGGLE( optsDsSettingsStr[5], &configNerfs ),
 };
+#endif
 
 /* submenu definitions */
 
@@ -243,9 +251,11 @@ static struct SubMenu menuControls = DEF_SUBMENU( optMainStr[2], optsControls );
 static struct SubMenu menuVideo      = DEF_SUBMENU( optMainStr[3], optsVideo );
 #endif
 
+#if !defined(TARGET_PORT_CONSOLE)
 static struct SubMenu menuAudio      = DEF_SUBMENU( optMainStr[4], optsAudio );
 static struct SubMenu menuSettings   = DEF_SUBMENU( optMainStr[5], optsSettings );
 static struct SubMenu menuDsSettings = DEF_SUBMENU( optMainStr[6], optsDsSettings );
+#endif
 
 /* main options menu definition */
 
@@ -258,9 +268,11 @@ static struct Option optsMain[] = {
     DEF_OPT_SUBMENU( optMainStr[3], &menuVideo ),
 #endif
 
+#if !defined(TARGET_PORT_CONSOLE)
     DEF_OPT_SUBMENU( optMainStr[4], &menuAudio ),
     DEF_OPT_SUBMENU( optMainStr[5], &menuSettings ),
     DEF_OPT_SUBMENU( optMainStr[6], &menuDsSettings ),
+#endif
 
 #ifdef EXT_DEBUG_MENU
     // NOTE: always keep cheats the last option here because of the half-assed way I toggle them
@@ -507,8 +519,10 @@ void optmenu_toggle(void) {
         play_sound(SOUND_MENU_HIGH_SCORE, gGlobalSoundSource);
         #endif
         optmenu_open = 0;
+#if !defined(TARGET_PORT_CONSOLE)
         controller_reconfigure(); // rebind using new config values
         configfile_save(configfile_name());
+#endif
     }
 }
 
