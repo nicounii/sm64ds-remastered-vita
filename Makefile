@@ -962,6 +962,8 @@ else ifeq ($(TARGET_ANDROID),1) # Termux has clang
   endif
   OBJCOPY := $(CROSS)objcopy
   OBJDUMP := $(CROSS)objdump
+else ifeq ($(TARGET_VITA),1)
+  # Vita uses its own cross toolchain — OBJCOPY/OBJDUMP already set above
 else # Linux & other builds
   ifeq ($(COMPILER_TYPE),clang)
     CPP      := clang
@@ -1006,7 +1008,7 @@ else ifeq ($(findstring SDL,$(WINDOW_API)),SDL)
   else ifeq ($(TARGET_SWITCH),1)
     BACKEND_LDFLAGS += -lGLESv2
   else ifeq ($(TARGET_VITA),1)
-    BACKEND_LDFLAGS += -lGLESv2
+    BACKEND_LDFLAGS += -lvitaGL
   else ifeq ($(USE_GLES),1)
     BACKEND_LDFLAGS += -lGLESv2
   else ifeq ($(OSX_BUILD),1)
@@ -1146,7 +1148,7 @@ else ifeq ($(TARGET_SWITCH),1)
   LDFLAGS := -specs=$(LIBNX)/switch.specs $(NXARCH) $(BACKEND_LDFLAGS) -lstdc++ -lm
 
 else ifeq ($(TARGET_VITA),1)
-  VITA_LIBS := -lSDL2 -lSDL2_mixer -lvitaGL -lm -lSceDisplay_stub -lSceCtrl_stub \
+  VITA_LIBS := -lSDL2 -lSDL2_mixer -lvitaGL -lvitashark -lmathneon -lSceKernelDmacMgr_stub -lm -lSceDisplay_stub -lSceCtrl_stub \
                -lSceAudio_stub -lSceSysmodule_stub -lSceGxm_stub -lSceCommonDialog_stub \
                -lSceTouch_stub -lSceLibKernel_stub -lSceIofilemgr_stub -lSceProcessmgr_stub \
                -lSceAppMgr_stub -lSceAppUtil_stub -lScePower_stub -lSceRtc_stub \
@@ -1278,6 +1280,35 @@ ifeq ($(TARGET_N64),1)
 	@$(PRINT) "${RED}Microcode:      $(GREEN)$(GRUCODE)$(NO_COL)\n"
 endif
 	@$(PRINT) "${RED}Target:         $(GREEN)$(TARGET_NAME)$(NO_COL)\n"
+
+# PS Vita packaging
+ifeq ($(TARGET_VITA),1)
+VPK := $(BUILD_DIR)/$(TARGET).vpk
+SCE_SYS_DIR := $(PLATFORM_DIR)/sce_sys
+
+# Create param.sfo
+$(BUILD_DIR)/param.sfo:
+	$(V)vita-mksfoex -s TITLE_ID=SM64DSR01 \
+	  -s PSP2_SYSTEM_VER=03.600 \
+	  -s PARENTAL_LEVEL=1 \
+	  "SM64DS Remastered" $@
+
+# Create SELF (eboot.bin) from VELF (via EXE rule)
+$(BUILD_DIR)/eboot.bin: $(BUILD_DIR)/$(TARGET).velf
+	$(V)vita-make-fself $< $@
+
+# Final VPK packaging
+$(VPK): $(BUILD_DIR)/eboot.bin $(BUILD_DIR)/param.sfo
+	$(V)vita-pack-vpk -s $@ \
+	  --add $(BUILD_DIR)/eboot.bin=eboot.bin \
+	  --add $(BUILD_DIR)/param.sfo=param.sfo \
+	  --add $(SCE_SYS_DIR)/icon0.png=sce_sys/icon0.png \
+	  --add $(SCE_SYS_DIR)/livearea/contents/bg0.png=sce_sys/livearea/contents/bg0.png \
+	  --add $(SCE_SYS_DIR)/livearea/contents/template.xml=sce_sys/livearea/contents/template.xml
+
+.PHONY: vpk
+vpk: $(VPK)
+endif
 
 ifeq ($(TARGET_N64),1)
   EXE_DEPEND := $(ROM)
@@ -1869,6 +1900,15 @@ $(EXE): $(ELF)
 	$(V)nacptool --create "$(NX_APP_TITLE)" "$(NX_APP_AUTHOR)" "$(NX_APP_VERSION)" $(NACP_FILE) $(NACPFLAGS)
 	$(V)elf2nro $*.strip.elf $@ --nacp=$(NACP_FILE) --icon=$(NX_APP_ICON) $(ERROR_FILTER)
 	$(V)rm $*.strip.elf
+else ifeq ($(TARGET_VITA),1)
+
+$(ELF): $(O_FILES) $(MIO0_FILES:.mio0=.o) $(ULTRA_O_FILES) $(GODDARD_O_FILES)
+	@$(PRINT) "$(RED)Linking ELF file: $(GREEN)$@ $(NO_COL)\n"
+	$(V)$(LD) -L $(BUILD_DIR) -o $@ $(O_FILES) $(ULTRA_O_FILES) $(GODDARD_O_FILES) $(LDFLAGS)
+
+$(EXE): $(ELF)
+	$(V)vita-elf-create $< $@
+
 else
 
 ifeq ($(TARGET_ANDROID),1)
