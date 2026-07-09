@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<livearea>
+  <livearea_background>
+    <image>bg0.png</image>
+  </livearea_background>
+  <livearea_contents>
+    <livearea_contents_icon>
+      <image>startup.png</image>
+    </livearea_contents_icon>
+    <livearea_contents_title>
+      <text>SM64DS Remastered</text>
+    </livearea_contents_title>
+  </livearea_contents>
+</livearea>
