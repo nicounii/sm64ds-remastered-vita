@@ -29,6 +29,8 @@ TARGET_WII_U ?= 0
 TARGET_N3DS ?= 0
 # Build for Nintendo Switch
 TARGET_SWITCH ?= 0
+# Build for PS Vita
+TARGET_VITA ?= 0
 
 # Developer Mode
 DEV ?= 0
@@ -135,6 +137,18 @@ ifeq ($(TARGET_SWITCH),1)
   WINDOW_API := SDL2
   AUDIO_API := SDL2
   CONTROLLER_API := SWITCH
+
+  TARGET_PORT_CONSOLE := 1
+endif
+
+ifeq ($(TARGET_VITA),1)
+  ifeq ($(strip $(VITASDK)),)
+    $(error "Please set VITASDK in your environment. export VITASDK=<path to>/vitasdk")
+  endif
+  RENDER_API := GL
+  WINDOW_API := SDL2
+  AUDIO_API := SDL2
+  CONTROLLER_API := SDL2
 
   TARGET_PORT_CONSOLE := 1
 endif
@@ -346,6 +360,8 @@ else ifeq ($(TARGET_N3DS),1)
   DEFINES += TARGET_N3DS=1
 else ifeq ($(TARGET_SWITCH),1)
   DEFINES += TARGET_SWITCH=1 USE_GLES=1
+else ifeq ($(TARGET_VITA),1)
+  DEFINES += TARGET_VITA=1 USE_GLES=1
 endif
 
 # OpenGL defines
@@ -505,6 +521,10 @@ else ifeq ($(TARGET_SWITCH),1)
   BUILD_DIR := $(BUILD_DIR_BASE)/$(VERSION)_nx
   EXE := $(BUILD_DIR)/$(TARGET).nro
   TARGET_NAME := Nintendo Switch
+else ifeq ($(TARGET_VITA),1)
+  BUILD_DIR := $(BUILD_DIR_BASE)/$(VERSION)_vita
+  EXE := $(BUILD_DIR)/$(TARGET).velf
+  TARGET_NAME := PS Vita
 else ifeq ($(TARGET_ANDROID),1)
   BUILD_DIR := $(BUILD_DIR_BASE)/$(VERSION)_android
   EXE := $(BUILD_DIR)/libmain.so
@@ -557,6 +577,8 @@ else ifeq ($(TARGET_N3DS),1)
   PLATFORM_DIR := $(PLATFORM_DIR)/3ds
 else ifeq ($(TARGET_SWITCH),1)
   PLATFORM_DIR := $(PLATFORM_DIR)/switch
+else ifeq ($(TARGET_VITA),1)
+  PLATFORM_DIR := $(PLATFORM_DIR)/vita
 else ifeq ($(TARGET_ANDROID),1)
   PLATFORM_DIR := $(PLATFORM_DIR)/android
 endif
@@ -712,6 +734,25 @@ ifeq ($(TARGET_SWITCH),1)
   NACP_FILE := $(BUILD_DIR)/$(PLATFORM_DIR)/sm64.nacp
 endif
 
+ifeq ($(TARGET_VITA),1)
+  ifeq ($(strip $(VITASDK)),)
+    $(error "Please set VITASDK in your environment. export VITASDK=<path to>/vitasdk")
+  endif
+  PREFIX := $(VITASDK)/bin/arm-vita-eabi
+  CC := $(PREFIX)-gcc
+  CXX := $(PREFIX)-g++
+  AS := $(PREFIX)-as
+  AR := $(PREFIX)-ar
+  OBJCOPY := $(PREFIX)-objcopy
+  STRIP := $(PREFIX)-strip
+  SDLCROSS := $(VITASDK)/arm-vita-eabi/bin/
+
+  INCLUDE_DIRS += $(VITASDK)/arm-vita-eabi/include $(VITASDK)/arm-vita-eabi/include/SDL2
+
+  PLATFORM_CFLAGS := -marm -march=armv7-a -mtune=cortex-a9 -mfloat-abi=hard -fPIC -fsingle-precision-constant
+  PLATFORM_LDFLAGS := -L$(VITASDK)/arm-vita-eabi/lib
+endif
+
 C_DEFINES := $(foreach d,$(DEFINES),-D$(d))
 DEF_INC_CFLAGS := $(foreach i,$(INCLUDE_DIRS),-I $(i)) $(C_DEFINES)
 
@@ -849,6 +890,8 @@ else ifeq ($(findstring SDL,$(WINDOW_API)),SDL)
     BACKEND_LDFLAGS += -lGLESv2
   else ifeq ($(TARGET_SWITCH),1)
     BACKEND_LDFLAGS += -lGLESv2
+  else ifeq ($(TARGET_VITA),1)
+    BACKEND_LDFLAGS += -lGLESv2
   else ifeq ($(USE_GLES),1)
     BACKEND_LDFLAGS += -lGLESv2
   else ifeq ($(OSX_BUILD),1)
@@ -943,6 +986,10 @@ ifeq ($(TARGET_SWITCH),1)
   CFLAGS := $(NXARCH) $(BACKEND_CFLAGS) $(DEF_INC_CFLAGS) -fno-strict-aliasing -ftls-model=local-exec -fPIC -fwrapv -D__SWITCH__=1
 endif
 
+ifeq ($(TARGET_VITA),1)
+  CFLAGS := $(PLATFORM_CFLAGS) $(BACKEND_CFLAGS) $(DEF_INC_CFLAGS) -fno-strict-aliasing -fwrapv -Wno-int-to-pointer-cast -D__VITA__=1
+endif
+
 ifeq ($(CPP_ASSEMBLY),1)
   ASFLAGS := $(foreach i,$(INCLUDE_DIRS),-I$(i))
   ASFLAGS_DEFSYM := $(foreach d,$(ASMDEFINES),--defsym $(d))
@@ -972,6 +1019,14 @@ LDFLAGS := $(LIBPATHS) -lcitro3d -lctru -lm -specs=3dsx.specs -g -marm -mthumb-i
 
 else ifeq ($(TARGET_SWITCH),1)
   LDFLAGS := -specs=$(LIBNX)/switch.specs $(NXARCH) $(BACKEND_LDFLAGS) -lstdc++ -lm
+
+else ifeq ($(TARGET_VITA),1)
+  VITA_LIBS := -lSDL2 -lSDL2_mixer -lvitaGL -lm -lSceDisplay_stub -lSceCtrl_stub \
+               -lSceAudio_stub -lSceSysmodule_stub -lSceGxm_stub -lSceCommonDialog_stub \
+               -lSceTouch_stub -lSceLibKernel_stub -lSceIofilemgr_stub -lSceProcessmgr_stub \
+               -lSceAppMgr_stub -lSceAppUtil_stub -lScePower_stub -lSceRtc_stub \
+               -lSceNet_stub -lSceNetCtl_stub
+  LDFLAGS := $(PLATFORM_LDFLAGS) $(BACKEND_LDFLAGS) $(VITA_LIBS) -lstdc++
 
 else ifeq ($(WINDOWS_BUILD),1)
   LDFLAGS := $(BITS) -march=$(TARGET_ARCH) -Llib -lpthread $(BACKEND_LDFLAGS) -static
