@@ -6,6 +6,10 @@
 #include <ctype.h>
 #include <unistd.h>
 
+#ifdef TARGET_VITA
+#include <psp2/io/stat.h>
+#endif
+
 #ifdef TARGET_WII_U
 #include <whb/sdcard.h>
 #include <whb/log.h>
@@ -85,17 +89,19 @@ void sys_sleep(const uint64_t us) {
 
 static void sys_fatal_impl(const char *msg) __attribute__ ((noreturn));
 
-void sys_fatal(const char *fmt, ...) {
-    static char msg[2048];
-    va_list args;
-    va_start(args, fmt);
-    vsnprintf(msg, sizeof(msg), fmt, args);
-    va_end(args);
-    fflush(stdout); // push all crap out
-    sys_fatal_impl(msg);
+#ifdef TARGET_VITA
+const char *sys_user_path(void) {
+    return "ux0:data/sm64dsr";
 }
 
-#ifdef TARGET_WII_U
+const char *sys_exe_path(void) {
+    return "ux0:data/sm64dsr";
+}
+
+const char *sys_cont_pak_dir(void) {
+    return "ux0:data/sm64dsr";
+}
+#elif defined(TARGET_WII_U)
 
 static bool mounted = false;
 
