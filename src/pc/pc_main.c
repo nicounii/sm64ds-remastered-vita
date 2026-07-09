@@ -167,7 +167,7 @@ void game_deinit(void) {
     discord_shutdown();
 #endif
     configfile_save(configfile_name());
-#if defined(TARGET_SWITCH) || !defined(TARGET_PORT_CONSOLE)
+#if defined(TARGET_SWITCH) || defined(TARGET_VITA) || !defined(TARGET_PORT_CONSOLE)
     controller_shutdown();
     audio_shutdown();
     gfx_shutdown();
@@ -176,7 +176,7 @@ void game_deinit(void) {
 }
 
 void game_exit(void) {
-#if defined(TARGET_SWITCH) || !defined(TARGET_PORT_CONSOLE)
+#if defined(TARGET_SWITCH) || defined(TARGET_VITA) || !defined(TARGET_PORT_CONSOLE)
     game_deinit();
     exit(0);
 #endif
