@@ -1262,6 +1262,8 @@ ifeq ($(TARGET_N64),1)
 ALL_FILE := $(ROM)
 else ifeq ($(TARGET_ANDROID),1)
 ALL_FILE := $(APK_SIGNED)
+else ifeq ($(TARGET_VITA),1)
+ALL_FILE := $(EXE)
 else
 ALL_FILE := $(EXE)
 endif
@@ -1287,6 +1289,43 @@ endif
 
 ifeq ($(TARGET_N3DS),1)
 cia: $(CIA)
+endif
+
+# PS Vita packaging
+ifeq ($(TARGET_VITA),1)
+  VPK := $(BUILD_DIR)/$(TARGET).vpk
+  SCE_SYS_DIR := $(PLATFORM_DIR)/sce_sys
+
+  # Create param.sfo
+  $(BUILD_DIR)/param.sfo:
+	$(V)vita-mksfoex -s TITLE_ID=SM64DSR01 \
+	  -s PSP2_SYSTEM_VER=03.600 \
+	  -s PARENTAL_LEVEL=1 \
+	  "SM64DS Remastered" $@
+
+  # Convert ELF to VELF
+  $(BUILD_DIR)/$(TARGET).velf: $(BUILD_DIR)/$(TARGET).elf
+	$(V)vita-elf-create $< $@
+
+  # Create SELF (eboot.bin) from VELF
+  $(BUILD_DIR)/eboot.bin: $(BUILD_DIR)/$(TARGET).velf
+	$(V)vita-make-fself $< $@
+
+  # Build VPK
+  $(VPK): $(BUILD_DIR)/eboot.bin $(BUILD_DIR)/param.sfo
+	$(V)vita-pack-vpk -s $(BUILD_DIR)/param.sfo -b $(BUILD_DIR)/eboot.bin \
+	  --add $(SCE_SYS_DIR)/icon0.png=sce_sys/icon0.png \
+	  --add $(SCE_SYS_DIR)/livearea/contents/template.xml=sce_sys/livearea/contents/template.xml \
+	  --add $(SCE_SYS_DIR)/livearea/contents/bg0.png=sce_sys/livearea/contents/bg0.png \
+	  --add $(SCE_SYS_DIR)/livearea/contents/startup.png=sce_sys/livearea/contents/startup.png \
+	  $@
+
+  # Add VPK as extra prerequisite to `all:` (Make allows additive prerequisites)
+  all: $(VPK)
+
+  # Standalone phony target for manual packaging
+  .PHONY: vpk
+  vpk: $(VPK)
 endif
 
 # thank you apple very cool
