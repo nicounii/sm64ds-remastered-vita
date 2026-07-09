@@ -802,6 +802,7 @@ ifeq ($(TARGET_VITA),1)
   OBJCOPY := $(PREFIX)-objcopy
   STRIP := $(PREFIX)-strip
   SDLCROSS := $(VITASDK)/arm-vita-eabi/bin/
+  CPP := $(PREFIX)-cpp
 
   INCLUDE_DIRS += $(VITASDK)/arm-vita-eabi/include $(VITASDK)/arm-vita-eabi/include/SDL2
 
@@ -1148,11 +1149,13 @@ else ifeq ($(TARGET_SWITCH),1)
   LDFLAGS := -specs=$(LIBNX)/switch.specs $(NXARCH) $(BACKEND_LDFLAGS) -lstdc++ -lm
 
 else ifeq ($(TARGET_VITA),1)
-  VITA_LIBS := -lSDL2 -lSDL2_mixer -lvitaGL -lvitashark -lmathneon -lSceKernelDmacMgr_stub -lm -lSceDisplay_stub -lSceCtrl_stub \
-               -lSceAudio_stub -lSceSysmodule_stub -lSceGxm_stub -lSceCommonDialog_stub \
-               -lSceTouch_stub -lSceLibKernel_stub -lSceIofilemgr_stub -lSceProcessmgr_stub \
-               -lSceAppMgr_stub -lSceAppUtil_stub -lScePower_stub -lSceRtc_stub \
-               -lSceNet_stub -lSceNetCtl_stub
+  VITA_LIBS := -lSDL2 -lSDL2_mixer -lvitaGL -lvitashark -lmathneon \
+               -lSceDisplay_stub -lSceCtrl_stub -lSceAudio_stub -lSceSysmodule_stub \
+               -lSceGxm_stub -lSceCommonDialog_stub -lSceTouch_stub -lSceLibKernel_stub \
+               -lSceIofilemgr_stub -lSceProcessmgr_stub -lSceAppMgr_stub -lSceAppUtil_stub \
+               -lScePower_stub -lSceRtc_stub -lSceNet_stub -lSceNetCtl_stub \
+               -lSceKernelDmacMgr_stub -llibScePiglet_stub \
+               -lSceShaccCg_stub -lSceShaccCgExt -ltaihen_stub -lm
   LDFLAGS := $(PLATFORM_LDFLAGS) $(BACKEND_LDFLAGS) $(VITA_LIBS) -lstdc++
 
 else ifeq ($(WINDOWS_BUILD),1)

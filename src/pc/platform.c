@@ -89,6 +89,15 @@ void sys_sleep(const uint64_t us) {
 
 static void sys_fatal_impl(const char *msg) __attribute__ ((noreturn));
 
+void sys_fatal(const char *fmt, ...) {
+    char msg[512];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(msg, sizeof(msg), fmt, args);
+    va_end(args);
+    sys_fatal_impl(msg);
+}
+
 #ifdef TARGET_VITA
 const char *sys_user_path(void) {
     return "ux0:data/sm64dsr";
@@ -100,6 +109,12 @@ const char *sys_exe_path(void) {
 
 const char *sys_cont_pak_dir(void) {
     return "ux0:data/sm64dsr";
+}
+
+static void sys_fatal_impl(const char *msg) {
+    fprintf(stderr, "FATAL ERROR:\n%s\n", msg);
+    fflush(stderr);
+    exit(1);
 }
 #elif defined(TARGET_WII_U)
 
