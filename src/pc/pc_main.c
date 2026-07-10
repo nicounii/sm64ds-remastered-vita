@@ -46,6 +46,27 @@
 #include <switch.h>
 #endif
 
+#ifdef TARGET_VITA
+#include <psp2/kernel/modulemgr.h>
+#include <psp2/types.h>
+
+/* Try to load SceLibm very early, before vitaGL/SDL init.
+ * On real hardware SceLibm is always present. Some vita3k
+ * firmware configurations may need explicit loading. */
+static void try_load_scelibm(void) {
+    /* Firmware paths for SceLibm (try most likely first) */
+    static const char *paths[] = {
+        "os0:system/internal/libm.suprx",
+        "vs0:system/internal/libm.suprx",
+        "os0:syslib/libm.suprx",
+    };
+    for (int i = 0; i < 3; i++) {
+        SceUID mod = sceKernelLoadStartModule(paths[i], 0, NULL, 0, NULL, NULL);
+        if (mod >= 0) break;
+    }
+}
+#endif
+
 #include "fs/fs.h"
 
 #include "game/game_init.h"
@@ -392,6 +413,10 @@ int main(UNUSED int argc, UNUSED char *argv[]) {
 #ifdef TARGET_SWITCH
     enableBoostMode();
     initNX();
+#endif
+#ifdef TARGET_VITA
+    /* Load SceLibm before any library that may depend on it */
+    try_load_scelibm();
 #endif
     main_func();
 #ifdef TARGET_SWITCH
