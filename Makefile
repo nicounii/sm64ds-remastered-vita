@@ -1337,6 +1337,11 @@ ifeq ($(TARGET_VITA),1)
   # Standalone phony target
   .PHONY: vpk
   vpk: $(VPK)
+
+  # Local autobuild: build + validate + optional FTP deploy
+  .PHONY: vita-autobuild
+  vita-autobuild:
+	$(V)scripts/vita-build.sh $(VERSION)
 endif
 
 # thank you apple very cool

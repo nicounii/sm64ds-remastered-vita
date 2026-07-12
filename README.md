@@ -124,6 +124,19 @@ Fork of [AloXado320/sm64ex-alo](https://github.com/AloUltraExt/sm64ex-alo)
   build/us_vita/sm64dsr.us.vpk
   ```
 
+  #### Automated local build (recommended):
+  ```sh
+  # Build + validate + optional FTP deploy to Vita
+  ./scripts/vita-build.sh                    # Build US version
+  ./scripts/vita-build.sh --deploy            # Build + FTP to Vita
+  VITA_IP=192.168.1.50 ./scripts/vita-build.sh --deploy
+
+  # Or via Makefile target
+  make vita-autobuild
+  ```
+
+  The script validates VPK integrity, SCE magic, PNG sizes, and forbidden files.
+
   #### Install on Vita:
   1. Transfer the VPK to your Vita via **FTP** (USB in VitaShell 1.95 is buggy).
   2. Install with VitaShell (hold L on launch if USB errors occur).
