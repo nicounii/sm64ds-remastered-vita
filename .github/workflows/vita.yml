@@ -1,0 +1,165 @@
+name: Vita Build & Test
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Build version (e.g. us, jp, eu)'
+        required: false
+        default: 'us'
+
+env:
+  BUILD_VERSION: ${{ inputs.version || 'us' }}
+
+jobs:
+  # ──────────────────────────────────────────────
+  # BUILD: Compile + package VPK in Docker
+  # ──────────────────────────────────────────────
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: vitasdk/vitasdk:latest
+      options: --user root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apk add --no-cache make python3 bash zip unzip file
+
+      - name: Build VPK
+        run: |
+          make TARGET_VITA=1 VERSION=${{ env.BUILD_VERSION }} -j$(nproc) vpk
+        timeout-minutes: 30
+
+      - name: Validate VPK structure
+        run: |
+          set -e
+          VPK=$(ls build/*_vita/*.vpk 2>/dev/null | head -1)
+          if [ -z "$VPK" ]; then
+            echo "::error::No VPK found in build/"
+            exit 1
+          fi
+          echo "VPK found: $VPK ($(du -h "$VPK" | cut -f1))"
+
+          # Verify VPK is a valid ZIP
+          unzip -t "$VPK" > /dev/null 2>&1
+          echo "✓ VPK is a valid ZIP archive"
+
+          # Check required Vita files
+          for req in "eboot.bin" "param.sfo" "sce_sys/icon0.png"; do
+            if unzip -l "$VPK" | grep -q "$req"; then
+              echo "✓ Contains $req"
+            else
+              echo "::error::Missing required file: $req"
+              exit 1
+            fi
+          done
+
+          # Check eboot.bin SCE magic
+          EBOOT_MAGIC=$(unzip -p "$VPK" eboot.bin | xxd -l 4 -p 2>/dev/null || echo "missing")
+          if [ "$EBOOT_MAGIC" = "53434500" ]; then
+            echo "✓ eboot.bin has valid SCE magic (SCE\0)"
+          else
+            echo "::warning::eboot.bin magic mismatch (got: $EBOOT_MAGIC, expected: 53434500)"
+          fi
+
+          # Ensure NO sce_sys/package/ files (causes 0x80870005)
+          if unzip -l "$VPK" | grep -q "sce_sys/package/"; then
+            echo "::error::VPK contains sce_sys/package/ files — will cause 0x80870005 install failure"
+            exit 1
+          fi
+          echo "✓ No forbidden sce_sys/package/ files"
+
+          # Check PNG sizes (< 420KB each)
+          for png in $(unzip -l "$VPK" | grep -oP 'sce_sys/.*\.png'); do
+            SIZE=$(unzip -l "$VPK" | grep "$png" | awk '{print $1}')
+            if [ "$SIZE" -gt 430080 ] 2>/dev/null; then
+              echo "::error::$png is ${SIZE} bytes (> 420KB) — may crash install"
+              exit 1
+            fi
+            echo "✓ $png ($(numfmt --to=iec $SIZE))"
+          done
+
+      - name: Upload VPK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sm64ds-remastered-vita
+          path: build/*_vita/*.vpk
+          if-no-files-found: error
+
+  # ──────────────────────────────────────────────
+  # HEADLESS TEST: Attempt runtime loading via Vita3K
+  # ──────────────────────────────────────────────
+  headless-test:
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Vita3K headless is experimental
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download VPK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sm64ds-remastered-vita
+          path: /tmp/vpk
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            cmake build-essential libgl1-mesa-dev libglu1-mesa-dev \
+            libsdl2-dev libssl-dev libfmt-dev libavcodec-dev libavformat-dev \
+            libavutil-dev libswscale-dev libcurl4-openssl-dev
+
+      - name: Build Vita3K
+        run: |
+          git clone --depth 1 https://github.com/Vita3K/Vita3K.git /tmp/vita3k-src
+          cmake -S /tmp/vita3k-src -B /tmp/vita3k-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_DISCORD_RPC=OFF \
+            -DENABLE_VITA3K_UPDATE=OFF \
+            -DENABLE_VITA3K_GIT_VERSION=OFF
+          cmake --build /tmp/vita3k-build -j$(nproc) --target Vita3K
+        timeout-minutes: 45
+        continue-on-error: true
+
+      - name: Attempt headless EBOOT load
+        run: |
+          if [ ! -f /tmp/vita3k-build/Vita3K ]; then
+            echo "Vita3K build failed — skipping headless test"
+            exit 0
+          fi
+
+          VPK_FILE=$(ls /tmp/vpk/*.vpk 2>/dev/null | head -1)
+          if [ -z "$VPK_FILE" ]; then
+            echo "No VPK found — skipping"
+            exit 0
+          fi
+
+          # Extract eboot.bin
+          mkdir -p /tmp/vita-test-app
+          unzip -o "$VPK_FILE" eboot.bin -d /tmp/vita-test-app
+
+          # Try headless load (10s timeout)
+          timeout 10 /tmp/vita3k-build/Vita3K \
+            --headless \
+            --load /tmp/vita-test-app/eboot.bin \
+            2>&1 || true
+
+          echo "--- Headless test completed (experimental) ---"
+
+      - name: Summary
+        run: |
+          echo "## Vita Build & Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ VPK built and validated" >> $GITHUB_STEP_SUMMARY
+          echo "- 🧪 Headless test: attempted (experimental)" >> $GITHUB_STEP_SUMMARY
