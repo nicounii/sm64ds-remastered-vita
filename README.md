@@ -96,6 +96,52 @@ Fork of [AloXado320/sm64ex-alo](https://github.com/AloUltraExt/sm64ex-alo)
  
 </details>
 
+<details>
+  <summary>To build for PS Vita, click here.</summary>
+
+  Requires FW 3.60+ (HENkaku/enso recommended).
+
+  #### Install VitaSDK:
+
+  ```sh
+  # Install vitasdk (Linux)
+  export VITASDK=/usr/local/vitasdk
+  curl -sL https://github.com/vitasdk/vdpm/raw/master/last_built_toolchain.py | python3 - master linux | tar xj -C $VITASDK --strip-components=1
+  # Install common libs
+  git clone https://github.com/vitasdk/vdpm.git
+  for pkg in zlib freetype bzip2 libpng sdl2 sdl2_mixer vitaGL; do
+    ./vdpm/vdpm -f $pkg
+  done
+  ```
+
+  #### Build VPK:
+  ```sh
+  make TARGET_VITA=1 -j$(nproc) vpk
+  ```
+
+  #### Output:
+  ```sh
+  build/us_vita/sm64dsr.us.vpk
+  ```
+
+  #### Install on Vita:
+  1. Transfer the VPK to your Vita via **FTP** (USB in VitaShell 1.95 is buggy).
+  2. Install with VitaShell (hold L on launch if USB errors occur).
+  3. If installation fails:
+     - Delete `ux0:/patch/SM64DSR01/` if it exists from a prior install
+     - Ensure PNG assets are <420KB with indexed palette (already optimized)
+     - Ensure VPK contains no `sce_sys/package/` files (checked in CI)
+
+  #### CI (GitHub Actions):
+  The repo includes `.github/workflows/vita.yml` which builds and validates
+  every push/PR:
+  - ✅ Cross-compiles in `vitasdk/vitasdk:latest` Docker container
+  - ✅ Validates VPK structure (SCE magic, required files, PNG size limits)
+  - ✅ Detects forbidden `sce_sys/package/` files (causes 0x80870005)
+  - 🧪 Experimental headless Vita3K runtime test
+
+</details>
+
  * To build for sm64ex platforms, [click here](https://github.com/sm64pc/sm64ex/blob/nightly/README.md).
  * To build for Wii U, [click here](https://github.com/aboood40091/sm64-port/blob/master/README.md). (TARGET_WII_U=1)
  * To build for 3DS, [click here](https://github.com/sm64-port/sm64_3ds/blob/master/README.md). (TARGET_N3DS=1)
