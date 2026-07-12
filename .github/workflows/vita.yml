@@ -31,11 +31,24 @@ jobs:
 
       - name: Install dependencies
         run: |
-          apk add --no-cache make python3 bash zip unzip file
+          apk add --no-cache make python3 bash zip unzip file xxd
+
+      # Decode baserom from GitHub secret (base64-encoded ROM)
+      # Set up a secret named BASEROM_US containing the base64 of your baserom.us.z64:
+      #   base64 -w0 baserom.us.z64 | gh secret set BASEROM_US --repo nicounii/sm64ds-remastered-vita
+      - name: Decode baserom
+        run: |
+          if [ -n "${{ secrets.BASEROM_US }}" ]; then
+            echo "${{ secrets.BASEROM_US }}" | base64 -d > baserom.${{ env.BUILD_VERSION }}.z64
+            ls -lh baserom.${{ env.BUILD_VERSION }}.z64
+          else
+            echo "::warning::No BASEROM_US secret set — skipping asset extraction"
+            echo "NOEXTRACT=1" >> $GITHUB_ENV
+          fi
 
       - name: Build VPK
         run: |
-          make TARGET_VITA=1 VERSION=${{ env.BUILD_VERSION }} -j$(nproc) vpk
+          make TARGET_VITA=1 VERSION=${{ env.BUILD_VERSION }} NOEXTRACT=${{ env.NOEXTRACT || '0' }} -j$(nproc) vpk
         timeout-minutes: 30
 
       - name: Validate VPK structure
