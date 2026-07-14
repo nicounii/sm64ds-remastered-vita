@@ -225,29 +225,17 @@ void write_tiles() {
         exit(EXIT_FAILURE);
     }
 
-    strcat(buffer, "/");
-
-    switch(type) {
-        case Skybox:
-            strcat(buffer, skyboxName);
-        break;
-        case Cake:
-            strcat(buffer, "cake");
-        break;
-        case CakeEU:
-            strcat(buffer, "cake_eu");
-        break;
-        default:
-            exit(EXIT_FAILURE);
-        break;
-    }
+    int remaining = PATH_MAX - strlen(buffer);
+    int pos = strlen(buffer);
+    snprintf(buffer + pos, remaining, "/%s",
+        type == Cake ? "cake" : (type == CakeEU ? "cake_eu" : skyboxName));
 
     int dirLength = strlen(buffer);
     char *filename = buffer + dirLength;
     for (int i = 0; i < props.numRows * props.numCols; i++) {
         if (!tiles[i].useless) {
             *filename = 0;
-            snprintf(filename, PATH_MAX, ".%d.rgba16.png", tiles[i].pos);
+            snprintf(filename, PATH_MAX - dirLength, ".%d.rgba16.png", tiles[i].pos);
             rgba2png(buffer, tiles[i].px, props.tileWidth, props.tileHeight);
         }
     }
