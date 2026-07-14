@@ -374,7 +374,7 @@ else ifeq ($(TARGET_N3DS),1)
 else ifeq ($(TARGET_SWITCH),1)
   DEFINES += TARGET_SWITCH=1 USE_GLES=1
 else ifeq ($(TARGET_VITA),1)
-  DEFINES += TARGET_VITA=1 USE_GLES=1
+  DEFINES += TARGET_VITA=1 USE_GLES=1 HIGH_FPS_PC=1
 endif
 
 # OpenGL defines
@@ -1133,7 +1133,7 @@ ASMFLAGS += $(CUSTOM_C_DEFINES)
 
 # Load external textures
 ifeq ($(EXTERNAL_DATA),1)
-  CFLAGS += -DFS_BASEDIR="\"$(BASEDIR)\""
+  CFLAGS += -DEXTERNAL_DATA -DFS_BASEDIR="\"$(BASEDIR)\""
   # tell skyconv to write names instead of actual texture data and save the split tiles so we can use them later
   SKYTILE_DIR := $(BUILD_DIR)/textures/skybox_tiles
   SKYCONV_ARGS := --store-names --write-tiles "$(SKYTILE_DIR)"
@@ -1338,7 +1338,17 @@ ifeq ($(TARGET_VITA),1)
   .PHONY: vpk
   vpk: $(VPK)
 
-  # Local autobuild: build + validate + optional FTP deploy
+  # Build data package (separate from VPK for Ghostship-like asset separation)
+  .PHONY: vita-data
+  vita-data:
+	$(V)$(MAKE) TARGET_VITA=1 EXTERNAL_DATA=1 VERSION=$(VERSION) -j$$(nproc) res
+
+  # Build thin VPK with EXTERNAL_DATA=1 (assets in separate data package)
+  .PHONY: vita-vpk-thin
+  vita-vpk-thin:
+	$(V)$(MAKE) TARGET_VITA=1 EXTERNAL_DATA=1 VERSION=$(VERSION) -j$$(nproc) vpk
+
+  # Local autobuild: thin VPK + data package + validate + optional FTP deploy
   .PHONY: vita-autobuild
   vita-autobuild:
 	$(V)scripts/vita-build.sh $(VERSION)
