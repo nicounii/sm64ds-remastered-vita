@@ -1558,6 +1558,11 @@ $(BUILD_DIR)/%.ci8.inc.c: %.ci8.png
 $(BUILD_DIR)/%.ci4.inc.c: %.ci4.png
 	$(call print,Converting CI:,$<,$@)
 	$(PYTHON) $(BINPNG) $< $@ 4
+
+# Catch-all for any .rgba16 file that doesn't have a direct PNG mapping (EXTERNAL_DATA)
+$(BUILD_DIR)/%.rgba16:
+	@mkdir -p $(dir $@)
+	$(V)$(ZEROTERM) "$(notdir $(basename $@))" > $@
 endif
 
 #==============================================================================#
