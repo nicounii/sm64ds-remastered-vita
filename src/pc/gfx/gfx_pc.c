@@ -304,6 +304,18 @@ static struct ColorCombiner *gfx_lookup_or_create_color_combiner(uint32_t cc_id)
     return prev_combiner = comb;
 }
 
+#ifdef EXTERNAL_DATA
+// Simple string hash (djb2) for texture cache lookup — used when
+// EXTERNAL_DATA is enabled (orig_addr is a texture name, not a pointer).
+static size_t string_hash(const uint8_t *str) {
+    size_t hash = 5381;
+    int c;
+    while ((c = *str++))
+        hash = ((hash << 5) + hash) + c;
+    return hash;
+}
+#endif
+
 static bool gfx_texture_cache_lookup(int tile, struct TextureHashmapNode **n, const uint8_t *orig_addr, uint32_t fmt, uint32_t siz, const uint8_t *palette, uint32_t checksum) {
 
     #ifdef EXTERNAL_DATA // hash and compare the data (i.e. the texture name) itself
@@ -581,15 +593,6 @@ static void import_texture_ci8(int tile) {
 }
 
 #else // EXTERNAL_DATA
-
-// Simple string hash (djb2) for texture cache lookup
-static size_t string_hash(const uint8_t *str) {
-    size_t hash = 5381;
-    int c;
-    while ((c = *str++))
-        hash = ((hash << 5) + hash) + c;
-    return hash;
-}
 
 // Missing texture fallback — 8x8 magenta/black checkerboard
 #define MISSING_W 8
